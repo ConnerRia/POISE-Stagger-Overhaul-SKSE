@@ -2,7 +2,7 @@
 
 #include <shared_mutex>
 #include <unordered_set>
-#include "Loki_PluginTools.h"
+#include "..\Loki_PluginTools.h"
 #include "TrueHUDControl.h"
 
 namespace Loki {

@@ -11,14 +11,16 @@
 
 namespace
 {
-	void InitializeLog(REL::Version version, SKSE::stl::zwstring name)
+	constexpr auto kModName = "POISEBreaker NG"sv;
+
+	void InitializeLog(REL::Version version)
 	{
 		auto path = logger::log_directory();
 		if (!path) {
 			stl::report_and_fail("Failed to find standard logging directory"sv);
 		}
 
-		*path /= fmt::format(FMT_STRING("{}--.log"), name);
+		*path /= fmt::format(FMT_STRING("{}.log"), kModName);
 		auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
 
 		auto log = std::make_shared<spdlog::logger>("global log"s, std::move(sink));
@@ -29,7 +31,7 @@ namespace
 		spdlog::set_default_logger(std::move(log));
 		spdlog::set_pattern("[%^%l%$] %v"s);
 
-		logger::info(FMT_STRING("{} v{}"), name, version);
+		logger::info(FMT_STRING("{} v{}"), kModName, version.string());
 	}
 
 	void MessageHandler(SKSE::MessagingInterface::Message* message)
@@ -236,12 +238,11 @@ namespace PoiseMod {  // Papyrus Functions
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
-	auto& mod = REL::Module::get();
-	InitializeLog(mod.version(), mod.filename());
-	logger::info("POISE loaded");
-
 	SKSE::Init(a_skse);
 	SKSE::AllocTrampoline(64);
+
+	InitializeLog(REL::Module::get().version());
+	logger::info("POISE loaded");
 
 	const auto messaging = SKSE::GetMessagingInterface();
 	if (!messaging->RegisterListener("SKSE", MessageHandler)) {  // add callbacks for TrueHUD

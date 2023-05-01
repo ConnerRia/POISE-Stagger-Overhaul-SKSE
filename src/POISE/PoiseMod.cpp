@@ -1,5 +1,5 @@
 #include "PoiseMod.h"
-#include "ActorCache.h"
+#include "../ActorCache.h"
 #include <ctime>
 
 
@@ -38,15 +38,16 @@ void Loki::PoiseMod::ReadPoiseTOML() {
             }
 
         } catch (const toml::parse_error& e) {
-            std::ostringstream ss;
-            ss << "Error parsing file \'" << *e.source().path << "\':\n"
-                << '\t' << e.description() << '\n'
-                << "\t\t(" << e.source().begin << ')';
-            logger::error(ss.str());
+			logger::error(
+				"Error parsing file \'{}\':\n"
+				"\t{}\n"
+				"\t\t({})",
+				*e.source().path, e.description(), e.source().begin.line
+			);
         } catch (const std::exception& e) {
             logger::error("{}", e.what());
         } catch (...) {
-            logger::error("Unknown failure"sv);
+            logger::error("Unknown failure");
         }
     };
 
@@ -232,7 +233,7 @@ void Loki::PoiseMod::InstallStaggerHook() {
 	auto& trampoline = SKSE::GetTrampoline();
 	_ProcessHitEvent = trampoline.write_call<5>(StaggerHook.address(), ProcessHitEvent);
 
-	logger::info("ProcessHitEvent hook injected"sv);
+	logger::info("ProcessHitEvent hook injected");
 }
 
 void Loki::PoiseMod::InstallWaterHook() {
@@ -241,7 +242,7 @@ void Loki::PoiseMod::InstallWaterHook() {
 	auto& trampoline = SKSE::GetTrampoline();
 	_GetSubmergedLevel = trampoline.write_call<5>(ActorUpdate.address(), GetSubmergedLevel);
 
-	logger::info("Update hook injected"sv);
+	logger::info("Update hook injected");
 }
 
 void Loki::PoiseMod::InstallIsActorKnockdownHook() {
@@ -250,7 +251,7 @@ void Loki::PoiseMod::InstallIsActorKnockdownHook() {
 	auto& trampoline = SKSE::GetTrampoline();
 	_IsActorKnockdown = trampoline.write_call<5>(isActorKnockdown.address(), IsActorKnockdown);
 
-	logger::info("isActorKnockdown hook injected"sv);
+	logger::info("isActorKnockdown hook injected");
 }
 
 /*
@@ -342,9 +343,9 @@ void Loki::PoiseMagicDamage::PoiseCalculateMagic(RE::MagicCaster* a_magicCaster,
                 auto ptr = Loki::PoiseMod::GetSingleton();
 
 				auto nowTime = uint32_t(std::time(nullptr) % UINT32_MAX);
-				auto lastStaggerTime = actor->pad1EC;
+				auto lastStaggerTime = actor->GetActorRuntimeData().pad1EC;
 				if (lastStaggerTime > nowTime) {
-					actor->pad1EC = nowTime;
+					actor->GetActorRuntimeData().pad1EC = nowTime;
 					lastStaggerTime = 0;
 				} 
 				else {
@@ -354,7 +355,7 @@ void Loki::PoiseMagicDamage::PoiseCalculateMagic(RE::MagicCaster* a_magicCaster,
 					}
 				}
 
-				auto EffectSetting = a_projectile->avEffect->As<RE::EffectSetting>();
+				auto EffectSetting = a_projectile->GetProjectileRuntimeData().avEffect->As<RE::EffectSetting>();
 
 				if (!EffectSetting) {
 					//logger::info("Could not find MagicEffect from projectile");
@@ -366,7 +367,7 @@ void Loki::PoiseMagicDamage::PoiseCalculateMagic(RE::MagicCaster* a_magicCaster,
 
 				// if stagger effect is whitelisted skip other nullchecks and instantly stagger.
 				if (ptr->StaggerEffectList.contains(EffectSetting) || EffectSetting == ptr->HardcodeFus1 || EffectSetting == ptr->HardcodeFus2 || EffectSetting == ptr->HardcodeDisarm1 || EffectSetting == ptr->HardcodeDisarm2) {
-					actor->pad0EC = 0;
+					actor->GetActorRuntimeData().pad0EC = 0;
 					auto hitPos = MAttacker->GetPosition();
 					auto heading = actor->GetHeadingAngle(hitPos, false);
 					auto stagDir = (heading >= 0.0f) ? heading / 360.0f : (360.0f + heading) / 360.0f;
@@ -422,14 +423,14 @@ void Loki::PoiseMagicDamage::PoiseCalculateMagic(RE::MagicCaster* a_magicCaster,
 					return;
                 }
 
-				auto avHealth = actor->GetActorValue(RE::ActorValue::kHealth);
-				auto avParalysis = actor->GetActorValue(RE::ActorValue::kParalysis);
+				auto avHealth = actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth);
+				auto avParalysis = actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kParalysis);
 				if (avHealth <= 0.05f || actor->IsInKillMove() || avParalysis) {
 					//logger::info("target is in state ineligible for poise dmg");
 					return;
 				}
 
-                auto Spell = a_projectile->spell->As<RE::MagicItem>();
+                auto Spell = a_projectile->GetProjectileRuntimeData().spell->As<RE::MagicItem>();
                 if (!Spell) {
 					//logger::info("Could not find spell from projectile");
 					return;
@@ -455,7 +456,7 @@ void Loki::PoiseMagicDamage::PoiseCalculateMagic(RE::MagicCaster* a_magicCaster,
 					return;
                 }
 
-                const auto zeffect = MAttacker->GetActiveEffectList();
+                const auto zeffect = MAttacker->AsMagicTarget()->GetActiveEffectList();
 				if (zeffect) {
 					for (const auto& aeffect : *zeffect) {
 						if (!aeffect) {
@@ -498,7 +499,7 @@ void Loki::PoiseMagicDamage::PoiseCalculateMagic(RE::MagicCaster* a_magicCaster,
 
                 if (blk) {
 					if (actor->IsPlayerRef()) {
-						float BlockMult = (actor->GetBaseActorValue(RE::ActorValue::kBlock));
+						float BlockMult = (actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kBlock));
 						if (BlockMult >= 20.0f) {
 							float fLogarithm = ((BlockMult - 20) / 50 + 1);
 							double PlayerBlockMult = (0.7 - log10(fLogarithm));
@@ -523,17 +524,17 @@ void Loki::PoiseMagicDamage::PoiseCalculateMagic(RE::MagicCaster* a_magicCaster,
 				//	a_result = 0.00f;
 				//}
 
-				int oriPoise = 0;
-				int poise = 0;
+				uint32_t oriPoise = 0;
+				uint32_t poise = 0;
 				float maxPoise = ptr->CalculateMaxPoise(actor);
 
 				if (ptr->StaggerEffectList.contains(EffectSetting)) {
-					actor->pad0EC = 0;
+					actor->GetActorRuntimeData().pad0EC = 0;
 				} else {
-					auto poiseRef = std::atomic_ref(actor->pad0EC);
+					auto poiseRef = std::atomic_ref(actor->GetActorRuntimeData().pad0EC);
 					oriPoise = poiseRef.load();
-					auto newPoise = 0;
-					auto newPoiseSet = 0; 
+					uint32_t newPoise = 0;
+					uint32_t newPoiseSet = 0; 
 					do {
 						poise = poiseRef.load();
 						if (poise > oriPoise){
@@ -552,12 +553,12 @@ void Loki::PoiseMagicDamage::PoiseCalculateMagic(RE::MagicCaster* a_magicCaster,
 					// after change pad0EC's typedef from std::uint32_t to std::int32_t, this case shouldn't happen anymore
 					if (poise > 100000) {
 						//logger::info("PoiseCalculateMagic strange poise value {}", poise);
-						actor->pad0EC = 0;
+						actor->GetActorRuntimeData().pad0EC = 0;
 					}
 				}
 
 				if (poise <= 0) {
-					if (!std::atomic_ref(actor->pad1EC).compare_exchange_strong(lastStaggerTime, nowTime)) {
+					if (!std::atomic_ref(actor->GetActorRuntimeData().pad1EC).compare_exchange_strong(lastStaggerTime, nowTime)) {
 						//logger::info("PoiseCalculateMagic prevent stagger lock", poise);
 						return;
 					}
@@ -765,9 +766,9 @@ void Loki::PoiseMagicDamage::PoiseCalculateExplosion(ExplosionHitData* a_hitData
 				auto ptr = Loki::PoiseMod::GetSingleton();
 
 				auto nowTime = uint32_t(std::time(nullptr) % UINT32_MAX);
-				auto lastStaggerTime = actor->pad1EC;
+				auto lastStaggerTime = actor->GetActorRuntimeData().pad1EC;
 				if (lastStaggerTime > nowTime) {
-					actor->pad1EC = nowTime;
+					actor->GetActorRuntimeData().pad1EC = nowTime;
 					lastStaggerTime = 0;
 				} else {
 					if (nowTime - lastStaggerTime < ptr->StaggerDelay) {
@@ -790,8 +791,8 @@ void Loki::PoiseMagicDamage::PoiseCalculateExplosion(ExplosionHitData* a_hitData
 					return;
 				}
 
-				auto avHealth = actor->GetActorValue(RE::ActorValue::kHealth);
-				auto avParalysis = actor->GetActorValue(RE::ActorValue::kParalysis);
+				auto avHealth = actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth);
+				auto avParalysis = actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kParalysis);
 				if (avHealth <= 0.05f || actor->IsInKillMove() || avParalysis) {
 					return;
 				}
@@ -825,7 +826,7 @@ void Loki::PoiseMagicDamage::PoiseCalculateExplosion(ExplosionHitData* a_hitData
 					return;
 				}
 
-				const auto zeffect = MAttacker->GetActiveEffectList();
+				const auto zeffect = MAttacker->AsMagicTarget()->GetActiveEffectList();
 				if (zeffect) {
 					for (const auto& aeffect : *zeffect) {
 						if (!aeffect) {
@@ -868,7 +869,7 @@ void Loki::PoiseMagicDamage::PoiseCalculateExplosion(ExplosionHitData* a_hitData
 
 				if (blk) {
 					if (actor->IsPlayerRef()) {
-						float BlockMult = (actor->GetBaseActorValue(RE::ActorValue::kBlock));
+						float BlockMult = (actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kBlock));
 						if (BlockMult >= 20.0f) {
 							float fLogarithm = ((BlockMult - 20) / 50 + 1);
 							double PlayerBlockMult = (0.7 - log10(fLogarithm));
@@ -891,17 +892,17 @@ void Loki::PoiseMagicDamage::PoiseCalculateExplosion(ExplosionHitData* a_hitData
 				//	a_result = 0.00f;
 				//}
 
-				int poise = 0;
-				int oriPoise = 0;
+				uint32_t poise = 0;
+				uint32_t oriPoise = 0;
 				float maxPoise = ptr->CalculateMaxPoise(actor);
 
 				if (ptr->StaggerEffectList.contains(EffectSetting)) {
-					actor->pad0EC = 0;
+					actor->GetActorRuntimeData().pad0EC = 0;
 				} else {
-					auto poiseRef = std::atomic_ref(actor->pad0EC);
+					auto poiseRef = std::atomic_ref(actor->GetActorRuntimeData().pad0EC);
 					oriPoise = poiseRef.load();
-					auto newPoise = 0;
-					auto newPoiseSet = 0;
+					uint32_t newPoise = 0;
+					uint32_t newPoiseSet = 0;
 					do {
 						poise = poiseRef.load();
 						if (poise > oriPoise) {
@@ -917,12 +918,12 @@ void Loki::PoiseMagicDamage::PoiseCalculateExplosion(ExplosionHitData* a_hitData
 					poise = newPoise;
 					if (poise > 100000) {
 						//logger::info("PoiseCalculateExplosion strange poise value {}", poise);
-						actor->pad0EC = 0;
+						actor->GetActorRuntimeData().pad0EC = 0;
 					}
 				}
 
 				if (poise <= 0) {
-					if (!std::atomic_ref(actor->pad1EC).compare_exchange_strong(lastStaggerTime, nowTime)) {
+					if (!std::atomic_ref(actor->GetActorRuntimeData().pad1EC).compare_exchange_strong(lastStaggerTime, nowTime)) {
 						//logger::info("PoiseCalculateExplosion prevent stagger lock", poise);
 						return;
 					}
@@ -1162,29 +1163,25 @@ float Loki::PoiseMod::CalculatePoiseDamage(RE::HitData& a_hitData, RE::Actor* a_
             case RE::WEAPON_TYPE::kHandToHandMelee: {
                 if (weap->HasKeywordID(0x19AAB3)) {
                     a_result *= ptr->CaestusMult;
-                    break;
                 }
                 else if (weap->HasKeywordID(0x19AAB4)) {
                     a_result *= ptr->ClawMult;
-                    break;
                 }
                 else {
 					if (!aggressor) {
-						a_result = 8.00f;  //if nullcheck fail just set it to 10 meh.                                                          
-						break;
+						a_result = 8.00f;  //if nullcheck fail just set it to 10 meh. 
 					}
                     else {
-						a_result = (aggressor->equippedWeight / 2);   //conner: for npc we use 1/2 of equip weight. Clamped to 50.						                                                                    
+						a_result = (aggressor->GetActorRuntimeData().equippedWeight / 2);  //conner: for npc we use 1/2 of equip weight. Clamped to 50.						                                                                    
 						if (a_result > 50.0f) {
 							a_result = 50.0f;
 						} 
                         if (aggressor->IsPlayerRef()) {
-							a_result = (aggressor->GetActorValue(RE::ActorValue::kUnarmedDamage) / 2);  //conner: we calculate player poise dmg as half of unarmed damage. Clamp to 25 max.
+							a_result = (aggressor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kUnarmedDamage) / 2);  //conner: we calculate player poise dmg as half of unarmed damage. Clamp to 25 max.
 							if (a_result > 25.0f) {
 								a_result = 25.0f;
 							}
                         }
-						break;
                     }
                 }
                 a_result *= ptr->Hand2Hand;
@@ -1246,7 +1243,7 @@ float Loki::PoiseMod::CalculatePoiseDamage(RE::HitData& a_hitData, RE::Actor* a_
         //imo bound weapons shouldnt be affected by weapon multipliers.
 		if (weap->weaponData.flags2.any(RE::TESObjectWEAP::Data::Flag2::kBoundWeapon)) {
 			if (aggressor) {
-				a_result = (8 + (aggressor->GetBaseActorValue(RE::ActorValue::kConjuration) * 0.12f));
+				a_result = (8 + (aggressor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kConjuration) * 0.12f));
 				//RE::ConsoleLog::GetSingleton()->Print("Using bound weapon flag, poise damage is %f", a_result);
 			}
 		}
@@ -1269,7 +1266,7 @@ float Loki::PoiseMod::CalculatePoiseDamage(RE::HitData& a_hitData, RE::Actor* a_
     if (aggressor->HasKeywordString("ActorTypeCreature") || aggressor->HasKeywordString("ActorTypeDwarven")) {
 	    for (auto idx : ptr->poiseRaceMap) {
 			if (aggressor) {
-				RE::TESRace* a_actorRace = aggressor->race;
+				RE::TESRace* a_actorRace = aggressor->GetActorRuntimeData().race;
 			    RE::TESRace* a_mapRace = idx.first;
 			    if (a_actorRace && a_mapRace) {
 				    if (a_actorRace->formID == a_mapRace->formID) {
@@ -1282,7 +1279,7 @@ float Loki::PoiseMod::CalculatePoiseDamage(RE::HitData& a_hitData, RE::Actor* a_
 	    }
     }
 
-    const auto zeffect = aggressor->GetActiveEffectList();
+    const auto zeffect = aggressor->AsMagicTarget()->GetActiveEffectList();
 	if (zeffect) {
 		for (const auto& aeffect : *zeffect) {
 			if (!aeffect) {
@@ -1309,7 +1306,7 @@ float Loki::PoiseMod::CalculatePoiseDamage(RE::HitData& a_hitData, RE::Actor* a_
 	}
 
     //ward buff is applied after keyword buffs but before hyperarmor and other modifiers 
-	float WardPower = a_actor->GetActorValue(RE::ActorValue::kWardPower);
+	float WardPower = a_actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kWardPower);
 	float WardPowerMult = ptr->WardPowerWeight;
 	a_result -= (WardPower * WardPowerMult);
 	(a_result > 0.0f) ? a_result : (a_result = 0.0f);
@@ -1344,7 +1341,7 @@ float Loki::PoiseMod::CalculatePoiseDamage(RE::HitData& a_hitData, RE::Actor* a_
     if (blk) {
 
 		if (a_actor->IsPlayerRef()) {
-			float BlockMult = (a_actor->GetBaseActorValue(RE::ActorValue::kBlock));
+			float BlockMult = (a_actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kBlock));
 			if (BlockMult >= 20.0f) {
 				float fLogarithm = ((BlockMult - 20) / 50 + 1);
 				double PlayerBlockMult = (0.7 - log10(fLogarithm));
@@ -1362,7 +1359,7 @@ float Loki::PoiseMod::CalculatePoiseDamage(RE::HitData& a_hitData, RE::Actor* a_
 
     if (atk) {
 		if (a_actor->IsPlayerRef()) {
-			float LightArmorMult = (a_actor->GetBaseActorValue(RE::ActorValue::kLightArmor));
+			float LightArmorMult = (a_actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kLightArmor));
 			float Slope = ptr->HyperArmorLogSlope; //default = 50
 			if (LightArmorMult >= 20.0f) {
 				float fLogarithm = ( (LightArmorMult - 20) / Slope + 1);
@@ -1390,7 +1387,7 @@ float Loki::PoiseMod::CalculatePoiseDamage(RE::HitData& a_hitData, RE::Actor* a_
 
     if (castleft || castright || castdual) {
 		if (a_actor->IsPlayerRef()) { 
-		float LightArmorMult = (a_actor->GetBaseActorValue(RE::ActorValue::kLightArmor));
+		float LightArmorMult = (a_actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kLightArmor));
         float Slope = ptr->SpellHyperLogSlope; //default = 60
 		   if (LightArmorMult >= 20.0f) {
 			   float fLogarithm = ((LightArmorMult - 20) / Slope + 1);
@@ -1442,17 +1439,17 @@ float Loki::PoiseMod::CalculateMaxPoise(RE::Actor* a_actor) {
 	float level = a_actor->GetLevel();
 	float levelweight = ptr->MaxPoiseLevelWeight;
     float levelweightplayer = ptr->MaxPoiseLevelWeightPlayer;
-	float ArmorRating = a_actor->GetActorValue(RE::ActorValue::kDamageResist);
+	float ArmorRating = a_actor->CalcArmorRating();
 	float ArmorWeight = ptr->ArmorLogarithmSlope;
 	float ArmorWeightPlayer = ptr->ArmorLogarithmSlopePlayer;
 	float RealWeight = ActorCache::GetSingleton()->GetOrCreateCachedWeight(a_actor);
 
 	level = (level < 100 ? level : 100);
 	ArmorRating = (ArmorRating > 0 ? ArmorRating : 0);
-	float a_result = (RealWeight + (levelweight * level) + (a_actor->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.2f)) * (1 + log10(ArmorRating / ArmorWeight + 1));
+	float a_result = (RealWeight + (levelweight * level) + (a_actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.2f)) * (1 + log10(ArmorRating / ArmorWeight + 1));
 	if (a_actor->IsPlayerRef()) {
 		level = (level < 60 ? level : 60);
-		a_result = (RealWeight + (levelweightplayer * level) + (a_actor->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.2f)) * (1 + log10(ArmorRating / ArmorWeightPlayer + 1));
+		a_result = (RealWeight + (levelweightplayer * level) + (a_actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.2f)) * (1 + log10(ArmorRating / ArmorWeightPlayer + 1));
     }
 
         
@@ -1460,13 +1457,13 @@ float Loki::PoiseMod::CalculateMaxPoise(RE::Actor* a_actor) {
 
     //KFC Original Recipe.
     if (ptr->UseOldFormula) {
-		a_result = (RealWeight + (a_actor->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.20f));
+		a_result = (RealWeight + (a_actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.20f));
     }
 
-    if (a_actor && a_actor->race->HasKeywordString("ActorTypeCreature") || a_actor->race->HasKeywordString("ActorTypeDwarven")) {
+    if (a_actor && a_actor->GetActorRuntimeData().race->HasKeywordString("ActorTypeCreature") || a_actor->GetActorRuntimeData().race->HasKeywordString("ActorTypeDwarven")) {
 	    for (auto idx : ptr->poiseRaceMap) {
-			if (a_actor && a_actor->race) {
-			    RE::TESRace* a_actorRace = a_actor->race;
+			if (a_actor && a_actor->GetActorRuntimeData().race) {
+			   RE::TESRace* a_actorRace = a_actor->GetActorRuntimeData().race;
 			    RE::TESRace* a_mapRace = idx.first;
 			    if (a_actorRace && a_mapRace) {
 				    if (a_actorRace->formID == a_mapRace->formID) {
@@ -1488,7 +1485,7 @@ float Loki::PoiseMod::CalculateMaxPoise(RE::Actor* a_actor) {
 		}
 	}
 
-    const auto effect = a_actor->GetActiveEffectList();
+    const auto effect = a_actor->AsMagicTarget()->GetActiveEffectList();
 	if (effect) {
 		for (const auto& veffect : *effect) {
 			if (!veffect) {
@@ -1528,12 +1525,12 @@ bool Loki::PoiseMod::IsActorKnockdown(RE::Character* a_this, std::int64_t a_unk)
 
     auto ptr = Loki::PoiseMod::GetSingleton();
 
-    auto avHealth = a_this->GetActorValue(RE::ActorValue::kHealth);
+    auto avHealth = a_this->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth);
     if (a_this->IsOnMount() || a_this->IsInMidair() || avHealth <= 0.05f) {
         return _IsActorKnockdown(a_this, a_unk);
     }
 
-	auto kGrabbed = a_this->GetActorValue(RE::ActorValue::kGrabbed);
+	auto kGrabbed = a_this->AsActorValueOwner()->GetActorValue(RE::ActorValue::kGrabbed);
 	if (kGrabbed == 1) {
 		return _IsActorKnockdown(a_this, a_unk);
 	} 
@@ -1564,16 +1561,16 @@ float Loki::PoiseMod::GetSubmergedLevel(RE::Actor* a_actor, float a_zPos, RE::TE
 
     auto ptr = Loki::PoiseMod::GetSingleton();
 
-    auto avHealth = a_actor->GetActorValue(RE::ActorValue::kHealth);
+    auto avHealth = a_actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth);
     if (avHealth <= 0.05f || !ptr->PoiseRegenEnabled) { return _GetSubmergedLevel(a_actor, a_zPos, a_cell); }
 
-    if (!a_actor->HasMagicEffect(ptr->poiseDelayEffect)) {
+    if (!a_actor->AsMagicTarget()->HasMagicEffect(ptr->poiseDelayEffect)) {
         auto a_result = (int)CalculateMaxPoise(a_actor);
 		if (a_result > 100000) {
 			//logger::info("GetSubmergedLevel strange poise value {}", a_result);
 			a_result = 0;
 		}
-        a_actor->pad0EC = a_result;
+		a_actor->GetActorRuntimeData().pad0EC = a_result;
     }
 
     return _GetSubmergedLevel(a_actor, a_zPos, a_cell);
@@ -1584,9 +1581,9 @@ void Loki::PoiseMod::ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData)
     auto ptr = Loki::PoiseMod::GetSingleton();
 
 	auto nowTime = uint32_t(std::time(nullptr) % UINT32_MAX);
-	auto lastStaggerTime = a_actor->pad1EC;
+	auto lastStaggerTime = a_actor->GetActorRuntimeData().pad1EC;
 	if (lastStaggerTime > nowTime) {
-		a_actor->pad1EC = nowTime;
+		a_actor->GetActorRuntimeData().pad1EC = nowTime;
 		lastStaggerTime = 0;
 	} else {
 		if (nowTime - lastStaggerTime < ptr->StaggerDelay) {
@@ -1598,8 +1595,8 @@ void Loki::PoiseMod::ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData)
     using HitFlag = RE::HitData::Flag;
     RE::FormID kLurker = 0x14495;
 
-    auto avHealth = a_actor->GetActorValue(RE::ActorValue::kHealth);
-    auto avParalysis = a_actor->GetActorValue(RE::ActorValue::kParalysis);
+    auto avHealth = a_actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth);
+    auto avParalysis = a_actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kParalysis);
     if (avHealth <= 0.05f || a_actor->IsInKillMove() || avParalysis) { return _ProcessHitEvent(a_actor, a_hitData); }
 
     if (a_actor->IsPlayerRef() && !ptr->PlayerPoiseEnabled) { return _ProcessHitEvent(a_actor, a_hitData); }
@@ -1616,15 +1613,15 @@ void Loki::PoiseMod::ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData)
         dmg = 0.00f;
     }
 
-	int poise = 0;
-	int oriPoise = 0;
+	uint32_t poise = 0;
+	uint32_t oriPoise = 0;
 	float maxPoise = CalculateMaxPoise(a_actor);
 
 	{
-		auto poiseRef = std::atomic_ref(a_actor->pad0EC);
+		auto poiseRef = std::atomic_ref(a_actor->GetActorRuntimeData().pad0EC);
 		oriPoise = poiseRef.load();
-		auto newPoise = 0;
-		auto newPoiseSet = 0;
+		auto newPoise = 0u;
+		auto newPoiseSet = 0u;
 		do {
 			poise = poiseRef.load();
 			if (poise > oriPoise) {
@@ -1640,12 +1637,12 @@ void Loki::PoiseMod::ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData)
 		poise = newPoise;
 		if (poise > 100000) {
 			//logger::info("ProcessHitEvent strange poise value {}", poise);
-			a_actor->pad0EC = 0;
+			a_actor->GetActorRuntimeData().pad0EC = 0;
 		}
 	}
 
 	if (poise <= 0) {
-		if (!std::atomic_ref(a_actor->pad1EC).compare_exchange_strong(lastStaggerTime, nowTime)) {
+		if (!std::atomic_ref(a_actor->GetActorRuntimeData().pad1EC).compare_exchange_strong(lastStaggerTime, nowTime)) {
 			//logger::info("ProcessHitEvent prevent stagger lock", poise);
 			return _ProcessHitEvent(a_actor, a_hitData);
 		}
@@ -1655,13 +1652,13 @@ void Loki::PoiseMod::ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData)
         RE::ConsoleLog::GetSingleton()->Print("---");
         RE::ConsoleLog::GetSingleton()->Print("Aggressor's Weight: %f", a_hitData.aggressor.get()->GetWeight());
 		RE::ConsoleLog::GetSingleton()->Print("Aggressor's EquipWeight: %f", ActorCache::GetSingleton()->GetOrCreateCachedWeight(a_hitData.aggressor.get().get()));
-        RE::ConsoleLog::GetSingleton()->Print("Aggressor's Current Poise Health: %d", a_hitData.aggressor.get()->pad0EC);
+		RE::ConsoleLog::GetSingleton()->Print("Aggressor's Current Poise Health: %d", a_hitData.aggressor.get()->GetActorRuntimeData().pad0EC);
         RE::ConsoleLog::GetSingleton()->Print("Aggresssor's Max Poise Health: %f", CalculateMaxPoise(a_hitData.aggressor.get().get()));
         RE::ConsoleLog::GetSingleton()->Print("Aggressor's Poise Damage: %f", dmg);
         RE::ConsoleLog::GetSingleton()->Print("-");
         RE::ConsoleLog::GetSingleton()->Print("Victim's Weight: %f", a_actor->GetWeight());
 		RE::ConsoleLog::GetSingleton()->Print("Victim's EquipWeight: %f", ActorCache::GetSingleton()->GetOrCreateCachedWeight(a_actor));
-		RE::ConsoleLog::GetSingleton()->Print("Victim's Current Poise Health: %d %d", poise, a_actor->pad0EC);
+		RE::ConsoleLog::GetSingleton()->Print("Victim's Current Poise Health: %d %d", poise, a_actor->GetActorRuntimeData().pad0EC);
         RE::ConsoleLog::GetSingleton()->Print("Victim's Max Poise Health %f", CalculateMaxPoise(a_actor));
         RE::ConsoleLog::GetSingleton()->Print("---");
     }
@@ -1715,7 +1712,7 @@ void Loki::PoiseMod::ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData)
         else {
             if (a_hitData.flags == HitFlag::kExplosion || a_hitData.aggressor.get()->HasKeyword(ptr->kDragon)
                 || a_hitData.aggressor.get()->HasKeyword(ptr->kGiant) || a_hitData.aggressor.get()->HasKeyword(ptr->kDwarven)
-                || a_hitData.aggressor.get()->HasKeyword(ptr->kTroll) || a_hitData.aggressor.get()->race->formID == kLurker) {  // check if explosion, dragon, giant attack or dwarven
+                || a_hitData.aggressor.get()->HasKeyword(ptr->kTroll) || a_hitData.aggressor.get()->GetActorRuntimeData().race->formID == kLurker) {  // check if explosion, dragon, giant attack or dwarven
                 if (stagDir > 0.25f && stagDir < 0.75f) {
                     str = ptr->poiseLargestFwd;
                 } 
@@ -1752,7 +1749,7 @@ void Loki::PoiseMod::ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData)
         else {
             if (a_hitData.flags == HitFlag::kExplosion || a_hitData.aggressor.get()->HasKeyword(ptr->kDragon)
                 || a_hitData.aggressor.get()->HasKeyword(ptr->kGiant) || a_hitData.aggressor.get()->HasKeyword(ptr->kDwarven)
-                || a_hitData.aggressor.get()->HasKeyword(ptr->kTroll) || a_hitData.aggressor.get()->race->formID == kLurker) {  // check if explosion, dragon, giant attack or dwarven
+                || a_hitData.aggressor.get()->HasKeyword(ptr->kTroll) || a_hitData.aggressor.get()->GetActorRuntimeData().race->formID == kLurker) {  // check if explosion, dragon, giant attack or dwarven
                 if (stagDir > 0.25f && stagDir < 0.75f) {
                     str = ptr->poiseLargeFwd;
                 } 
@@ -1783,8 +1780,8 @@ void Loki::PoiseMod::ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData)
         } 
         else {
             if (a_hitData.flags == HitFlag::kExplosion || a_hitData.aggressor.get()->HasKeyword(ptr->kDragon)
-                || a_hitData.aggressor.get()->HasKeyword(ptr->kGiant) || a_hitData.aggressor.get()->HasKeyword(ptr->kDwarven)
-                || a_hitData.aggressor.get()->HasKeyword(ptr->kTroll) || a_hitData.aggressor.get()->race->formID == kLurker) {
+                || a_hitData.aggressor.get()->HasKeyword(ptr->kGiant) || a_hitData.aggressor.get()->HasKeyword(ptr->kDwarven) 
+				|| a_hitData.aggressor.get()->HasKeyword(ptr->kTroll) || a_hitData.aggressor.get()->GetActorRuntimeData().race->formID == kLurker) {
                 if (stagDir > 0.25f && stagDir < 0.75f) {
                     str = ptr->poiseLargeFwd;
                 } 
