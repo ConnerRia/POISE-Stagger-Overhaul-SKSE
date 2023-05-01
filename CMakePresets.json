@@ -5,7 +5,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": {
           "type": "STRING",
-          "value": "Release"
+          "value": "Debug"
         }
       },
       "errors": {
@@ -22,7 +22,7 @@
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": {
           "type": "STRING",
-          "value": "$env{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake"
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
         }
       },
       "hidden": true,
@@ -32,19 +32,23 @@
       "cacheVariables": {
         "CMAKE_MSVC_RUNTIME_LIBRARY": {
           "type": "STRING",
-          "value": "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+          "value": "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
         },
         "VCPKG_TARGET_TRIPLET": {
           "type": "STRING",
-          "value": "x64-windows-static"
+          "value": "x64-windows-static-md"
         }
       },
       "hidden": true,
       "name": "windows"
     },
     {
+      "architecture": {
+        "strategy": "set",
+        "value": "x64"
+      },
       "cacheVariables": {
-        "CMAKE_CXX_FLAGS": "/EHsc /MP /W4 /WX $penv{CXXFLAGS}"
+        "CMAKE_CXX_FLAGS": "/EHsc /MP /W4 /WX"
       },
       "generator": "Visual Studio 17 2022",
       "inherits": [
@@ -52,23 +56,17 @@
         "vcpkg",
         "windows"
       ],
-      "name": "vs2022-windows-vcpkg-se",
+      "name": "vs2022-windows",
       "toolset": "v143"
     },
     {
-      "binaryDir": "${sourceDir}/buildae",
-      "cacheVariables": {
-        "CMAKE_CXX_FLAGS": "/EHsc /MP /W4 /WX $penv{CXXFLAGS}",
-        "BUILD_SKYRIMAE": true
-      },
-      "generator": "Visual Studio 17 2022",
+      "generator": "Ninja",
       "inherits": [
         "cmake-dev",
         "vcpkg",
         "windows"
       ],
-      "name": "vs2022-windows-vcpkg-ae",
-      "toolset": "v143"
+      "name": "clang-windows"
     }
   ],
   "version": 3

@@ -10,6 +10,7 @@
 #include "xbyak/xbyak.h"
 #include <spdlog/sinks/basic_file_sink.h>
 #include <toml++/toml.h>
+#include <fmt/format.h>
 
 #define TRUEHUD_API_COMMONLIB
 
@@ -49,10 +50,3 @@ namespace stl
 [[nodiscard]] void* allocate(Xbyak::CodeGenerator& a_code);
 #endif
 
-#ifdef SKYRIM_AE
-#	define OFFSET(se, ae) ae
-#else
-#	define OFFSET(se, ae) se
-#endif
-
-#include "Version.h"

@@ -1,5 +1,5 @@
 #include "TrueHUDControl.h"
-#include "ActorCache.h"
+#include "../ActorCache.h"
 
 Loki::TrueHUDControl::TrueHUDControl() {
     CSimpleIniA ini;
@@ -24,5 +24,5 @@ float Loki::TrueHUDControl::GetMaxSpecial([[maybe_unused]] RE::Actor* a_actor) {
 }
 
 float Loki::TrueHUDControl::GetCurrentSpecial([[maybe_unused]] RE::Actor* a_actor) {
-    return (float)a_actor->pad0EC;
+    return (float)a_actor->GetActorRuntimeData().pad0EC;
 }
