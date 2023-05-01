@@ -228,7 +228,7 @@ Loki::PoiseMod* Loki::PoiseMod::GetSingleton() {
 }
 
 void Loki::PoiseMod::InstallStaggerHook() {
-	REL::Relocation<std::uintptr_t> StaggerHook{ RELOCATION_ID(37673, 38627), OFFSET(0x3C0, 0x4A8) };
+	REL::Relocation<std::uintptr_t> StaggerHook{ RELOCATION_ID(37673, 38627), REL::Relocate(0x3C0, 0x4A8) };
 
 	auto& trampoline = SKSE::GetTrampoline();
 	_ProcessHitEvent = trampoline.write_call<5>(StaggerHook.address(), ProcessHitEvent);
@@ -237,7 +237,7 @@ void Loki::PoiseMod::InstallStaggerHook() {
 }
 
 void Loki::PoiseMod::InstallWaterHook() {
-	REL::Relocation<std::uintptr_t> ActorUpdate{ RELOCATION_ID(36357, 37348), OFFSET(0x6D3, 0x674) };
+	REL::Relocation<std::uintptr_t> ActorUpdate{ RELOCATION_ID(36357, 37348), REL::Relocate(0x6D3, 0x674) };
 	// last ditch effort
 	auto& trampoline = SKSE::GetTrampoline();
 	_GetSubmergedLevel = trampoline.write_call<5>(ActorUpdate.address(), GetSubmergedLevel);
@@ -246,7 +246,7 @@ void Loki::PoiseMod::InstallWaterHook() {
 }
 
 void Loki::PoiseMod::InstallIsActorKnockdownHook() {
-	REL::Relocation<std::uintptr_t> isActorKnockdown{ RELOCATION_ID(38858, 39895), OFFSET(0x7E, 0x68) };
+	REL::Relocation<std::uintptr_t> isActorKnockdown{ RELOCATION_ID(38858, 39895), REL::Relocate(0x7E, 0x68) };
 
 	auto& trampoline = SKSE::GetTrampoline();
 	_IsActorKnockdown = trampoline.write_call<5>(isActorKnockdown.address(), IsActorKnockdown);
@@ -1557,7 +1557,8 @@ bool Loki::PoiseMod::IsActorKnockdown(RE::Character* a_this, std::int64_t a_unk)
 
 }
 
-float Loki::PoiseMod::GetSubmergedLevel(RE::Actor* a_actor, float a_zPos, RE::TESObjectCELL* a_cell) {
+float Loki::PoiseMod::GetSubmergedLevel(RE::Actor* a_actor, float a_zPos, RE::TESObjectCELL* a_cell)
+{
 
     auto ptr = Loki::PoiseMod::GetSingleton();
 

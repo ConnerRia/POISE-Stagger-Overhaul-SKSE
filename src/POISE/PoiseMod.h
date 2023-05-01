@@ -83,7 +83,7 @@ namespace Loki {
 
     private:
         static bool IsActorKnockdown(RE::Character* a_this, std::int64_t a_unk);
-        static float GetSubmergedLevel(RE::Actor* a_actor, float a_zPos, RE::TESObjectCELL* a_cell);
+		static float GetSubmergedLevel(RE::Actor* a_ref, float a_zPos, RE::TESObjectCELL* a_cell);
         static void ProcessHitEvent(RE::Actor* a_actor, RE::HitData& a_hitData);
 
         static inline REL::Relocation<decltype(GetSubmergedLevel)> _GetSubmergedLevel;
