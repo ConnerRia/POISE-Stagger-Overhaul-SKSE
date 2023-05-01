@@ -75,7 +75,7 @@ void ActorCache::EquipEvent(const RE::TESEquipEvent* a_event)
 							ActorData& data = formCache.at(actor->formID);
 							data.trueWeightValue += a_event->equipped ? weight : -weight;
 							logger::debug("{} {} weight ", a_event->equipped ? "Added" : "Removed", weight);
-							logger::debug("True weight is {} vanilla weight is {}", data.trueWeightValue, actor->equippedWeight);
+							logger::debug("True weight is {} vanilla weight is {}", data.trueWeightValue, actor->GetActorRuntimeData().equippedWeight);
 						}
 					}
 				}
@@ -126,7 +126,7 @@ float ActorCache::GetOrCreateCachedWeight(RE::Actor* a_actor)
 	if (!formCache.contains(a_actor->formID)) {
 		ActorData data;
 		data.trueWeightValue = CalculateEquippedWeight(a_actor);
-		logger::debug("True weight is {} vanilla weight is {}", data.trueWeightValue, a_actor->equippedWeight);
+		logger::debug("True weight is {} vanilla weight is {}", data.trueWeightValue, a_actor->GetActorRuntimeData().equippedWeight);
 		formCache.insert({ a_actor->formID, data });
 		return data.trueWeightValue;
 	}
