@@ -5,7 +5,11 @@
   "dependencies": [
     "boost-stl-interfaces",
     "rsm-binary-io",
-    "commonlibsse-ng-flatrim"
+    "commonlibsse-ng-flatrim",
+    "simpleini",
+    "spdlog",
+    "tomlplusplus",
+    "fmt"
   ],
   "builtin-baseline": "cb1301e9977b5f10b49f7988f68b808f7a558970"
 }

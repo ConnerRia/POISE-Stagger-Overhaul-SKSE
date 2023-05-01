@@ -10,6 +10,7 @@
 #include "xbyak/xbyak.h"
 #include <spdlog/sinks/basic_file_sink.h>
 #include <toml++/toml.h>
+#include <fmt/format.h>
 
 #define TRUEHUD_API_COMMONLIB
 
@@ -54,5 +55,3 @@ namespace stl
 #else
 #	define OFFSET(se, ae) se
 #endif
-
-#include "Version.h"

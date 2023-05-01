@@ -1,4 +1,6 @@
-﻿#include "Loki_PluginTools.h"
+﻿#include "PCH.h"
+
+#include "Loki_PluginTools.h"
 #include "POISE/PoiseMod.h"
 #include "POISE/TrueHUDAPI.h"
 #include "POISE/TrueHUDControl.h"
@@ -9,14 +11,14 @@
 
 namespace
 {
-	void InitializeLog()
+	void InitializeLog(REL::Version version, SKSE::stl::zwstring name)
 	{
 		auto path = logger::log_directory();
 		if (!path) {
 			stl::report_and_fail("Failed to find standard logging directory"sv);
 		}
 
-		*path /= fmt::format(FMT_STRING("{}.log"), Version::PROJECT);
+		*path /= fmt::format(FMT_STRING("{}--.log"), name);
 		auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
 
 		auto log = std::make_shared<spdlog::logger>("global log"s, std::move(sink));
@@ -27,7 +29,7 @@ namespace
 		spdlog::set_default_logger(std::move(log));
 		spdlog::set_pattern("[%^%l%$] %v"s);
 
-		logger::info(FMT_STRING("{} v{}"), Version::PROJECT, Version::NAME);
+		logger::info(FMT_STRING("{} v{}"), name, version);
 	}
 
 	void MessageHandler(SKSE::MessagingInterface::Message* message)
@@ -234,7 +236,8 @@ namespace PoiseMod {  // Papyrus Functions
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
-	InitializeLog();
+	auto& mod = REL::Module::get();
+	InitializeLog(mod.version(), mod.filename());
 	logger::info("POISE loaded");
 
 	SKSE::Init(a_skse);

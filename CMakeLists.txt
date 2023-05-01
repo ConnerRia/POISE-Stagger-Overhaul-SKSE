@@ -11,8 +11,10 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 
 include(GNUInstallDirs)
 find_package(CommonLibSSE CONFIG REQUIRED)
-
-
+find_package(spdlog CONFIG REQUIRED)
+find_path(SIMPLEINI_INCLUDE_DIRS "ConvertUTF.c")
+find_package(tomlplusplus CONFIG REQUIRED)
+find_package(fmt CONFIG REQUIRED)
 
 # Do not delete the below begin and end statements.
 # They are used by the globber py script for replacement
@@ -57,7 +59,13 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     USE_SIGNATURE_SCANNING
 
     # List of the sources to include in the target, as would be the parameters to add_library.
-    SOURCES ${SOURCES} ${HEADERS}
+    SOURCES ${SOURCES} ${HEADERS} ${SIMPLEINI_INCLUDE_DIRS}
+)
+
+target_link_libraries(${PROJECT_NAME} 
+    PRIVATE spdlog::spdlog
+    PRIVATE tomlplusplus::tomlplusplus
+    PRIVATE fmt::fmt
 )
 
 target_compile_features(
