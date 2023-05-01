@@ -6,38 +6,6 @@
 #include <atomic>
 
 
-#ifdef SKYRIM_AE
-extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
-	SKSE::PluginVersionData v;
-	v.PluginVersion(Version::MAJOR);
-	v.PluginName("loki_POISE");
-	v.AuthorName("LokiWasHere");
-	v.UsesAddressLibrary(true);
-	v.CompatibleVersions({ SKSE::RUNTIME_LATEST });
-
-	return v;
-}();
-#else
-extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Query(const SKSE::QueryInterface* a_skse, SKSE::PluginInfo* a_info)
-{
-	a_info->infoVersion = SKSE::PluginInfo::kVersion;
-	a_info->name = Version::PROJECT.data();
-	a_info->version = Version::MAJOR;
-
-	if (a_skse->IsEditor()) {
-		logger::critical("Loaded in editor, marking as incompatible"sv);
-		return false;
-	}
-
-	const auto ver = a_skse->RuntimeVersion();
-	if (ver < SKSE::RUNTIME_1_5_39) {
-		logger::critical(FMT_STRING("Unsupported runtime version {}"), ver.string());
-		return false;
-	}
-
-	return true;
-}
-#endif
 
 namespace
 {
@@ -112,10 +80,10 @@ namespace PoiseMod {  // Papyrus Functions
         if (!a_actor) {
             return;
         } else {
-			auto poise = std::atomic_ref(a_actor->pad0EC).fetch_sub((int)a_amount);
+			auto poise = std::atomic_ref(a_actor->GetActorRuntimeData().pad0EC).fetch_sub((int)a_amount);
 			if (poise > 100000) { 
 				logger::info("DamagePoise strange poise value {}", poise);
-				a_actor->pad0EC = 0;
+				a_actor->GetActorRuntimeData().pad0EC = 0;
 			}
 			if (Loki::TrueHUDControl::GetSingleton()->g_trueHUD) {
 				Loki::TrueHUDControl::GetSingleton()->GetCurrentSpecial(a_actor);
@@ -129,10 +97,10 @@ namespace PoiseMod {  // Papyrus Functions
         if (!a_actor) {
             return;
         } else {
-			auto poise = std::atomic_ref(a_actor->pad0EC).fetch_add((int)a_amount);
+			auto poise = std::atomic_ref(a_actor->GetActorRuntimeData().pad0EC).fetch_add((int)a_amount);
 			if (poise > 100000) {
 				logger::info("RestorePoise strange poise value {}", poise);
-				a_actor->pad0EC = 0;
+				a_actor->GetActorRuntimeData().pad0EC = 0;
 			}
 			if (Loki::TrueHUDControl::GetSingleton()->g_trueHUD) {
 				Loki::TrueHUDControl::GetSingleton()->GetCurrentSpecial(a_actor);
@@ -146,7 +114,7 @@ namespace PoiseMod {  // Papyrus Functions
         if (!a_actor) {
             return -1.00f;
         } else {
-            return (float)a_actor->pad0EC;
+			return (float)a_actor->GetActorRuntimeData().pad0EC;
         }
 
     }
@@ -163,28 +131,29 @@ namespace PoiseMod {  // Papyrus Functions
 			float level = a_actor->GetLevel();
 			float levelweight = ptr->MaxPoiseLevelWeight;
 			float levelweightplayer = ptr->MaxPoiseLevelWeightPlayer;
-			float ArmorRating = a_actor->GetActorValue(RE::ActorValue::kDamageResist);
+			float ArmorRating = a_actor->CalcArmorRating();	 //GetActorValue(RE::ActorValue::kDamageResist);
 			float ArmorWeight = ptr->ArmorLogarithmSlope;
 			float ArmorWeightPlayer = ptr->ArmorLogarithmSlopePlayer;
 			float RealWeight = ActorCache::GetSingleton()->GetOrCreateCachedWeight(a_actor);
+			float HeavyArmorFactor = a_actor->AsActorValueOwner()->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.2f;
 
 			level = (level < 100 ? level : 100);
 			ArmorRating = (ArmorRating > 0 ? ArmorRating : 0);
-			float a_result = (RealWeight + (levelweight * level) + (a_actor->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.2f)) * (1 + log10(ArmorRating / ArmorWeight + 1));
+			float a_result = (RealWeight + (levelweight * level) + HeavyArmorFactor) * (1 + log10(ArmorRating / ArmorWeight + 1));
 			if (a_actor->IsPlayerRef()) {
 				level = (level < 60 ? level : 60);
-				a_result = (RealWeight + (levelweightplayer * level) + (a_actor->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.2f)) * (1 + log10(ArmorRating / ArmorWeightPlayer + 1));
+				a_result = (RealWeight + (levelweightplayer * level) + HeavyArmorFactor) * (1 + log10(ArmorRating / ArmorWeightPlayer + 1));
 			}
 
 			//KFC Original Recipe.
 			if (ptr->UseOldFormula) {
-				a_result = (RealWeight + (a_actor->GetBaseActorValue(RE::ActorValue::kHeavyArmor) * 0.20f));
+				a_result = (RealWeight + HeavyArmorFactor);
 			}
 
-			if (a_actor && a_actor->race->HasKeywordString("ActorTypeCreature") || a_actor->race->HasKeywordString("ActorTypeDwarven")) {
+			if (a_actor && a_actor->GetActorRuntimeData().race->HasKeywordString("ActorTypeCreature") || a_actor->GetActorRuntimeData().race->HasKeywordString("ActorTypeDwarven")) {
 				for (auto idx : ptr->poiseRaceMap) {
 					if (a_actor) {
-						RE::TESRace* a_actorRace = a_actor->race;
+						RE::TESRace* a_actorRace = a_actor->GetActorRuntimeData().race;
 						RE::TESRace* a_mapRace = idx.first;
 						if (a_actorRace && a_mapRace) {
 							if (a_actorRace->formID == a_mapRace->formID) {
@@ -198,7 +167,7 @@ namespace PoiseMod {  // Papyrus Functions
 			}
 
             
-            const auto effect = a_actor->GetActiveEffectList();
+            const auto effect = a_actor->AsMagicTarget()->GetActiveEffectList();
 			for (const auto& veffect : *effect) {
 				if (!veffect) {
 					continue;
@@ -241,7 +210,7 @@ namespace PoiseMod {  // Papyrus Functions
 				logger::info("SetPoise strange poise value {}", a_amount);
 				a_amount = 0;
 			}
-            a_actor->pad0EC = (int)a_amount;
+            a_actor->GetActorRuntimeData().pad0EC = (int)a_amount;
         }
 
     }
@@ -263,7 +232,7 @@ namespace PoiseMod {  // Papyrus Functions
 
 }
 
-extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
+SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
 	InitializeLog();
 	logger::info("POISE loaded");
